@@ -346,6 +346,33 @@ public:
     /// the given tuple.
     bool matches(handle exc) const { return PyErr_GivenExceptionMatches(m_type.ptr(), exc.ptr()); }
 
+    /// Replaces the currently held error with the chosen error, performing a 'raise from' to make
+    /// the new error caused by the original error
+    void caused(PyObject *type, const char *message) {
+        // from cpython/errors.c _PyErr_FormatVFromCause
+        PyObject *exc, *val, *val2, *tb;
+        exc = m_type.release().ptr();
+        val = m_value.release().ptr();
+        tb = m_trace.release().ptr();
+
+        PyErr_NormalizeException(&exc, &val, &tb);
+        if (tb != nullptr) {
+            PyException_SetTraceback(val, tb);
+            Py_DECREF(tb);
+        }
+        Py_DECREF(exc);
+
+        PyErr_SetString(type, message);
+        PyErr_Fetch(&exc, &val2, &tb);
+        PyErr_NormalizeException(&exc, &val2, &tb);
+        Py_INCREF(val);
+        PyException_SetCause(val2, val);
+        PyException_SetContext(val2, val);
+        m_type = reinterpret_steal<object>(exc);
+        if (val2) { m_value = reinterpret_steal<object>(val2); }
+        if (tb) { m_trace = reinterpret_steal<object>(tb); }
+    }
+
     const object& type() const { return m_type; }
     const object& value() const { return m_value; }
     const object& trace() const { return m_trace; }
