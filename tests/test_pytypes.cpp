@@ -413,4 +413,14 @@ TEST_SUBMODULE(pytypes, m) {
 
     // test_builtin_functions
     m.def("get_len", [](py::handle h) { return py::len(h); });
+
+#if PY_VERSION_HEX >= 0x03020000
+    m.def("test_memoryview_scoped_release", [](py::function f) {
+        const char* buf = "\x42";
+        auto view = py::memoryview::from_memory(buf, 1);
+        py::memoryview_scoped_release release(view);
+        f(view);
+    });
+#endif
+
 }
